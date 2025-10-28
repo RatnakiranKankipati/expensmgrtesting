@@ -90,9 +90,10 @@ app.use((req, res, next) => {
   }
 
   // -------------------- Start Server -------------------- //
+  const port = Number(process.env.PORT) || 3000;
   
   
- const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Server running on port ${port}`);
+  });
 })();
