@@ -16,7 +16,7 @@ export interface AuthConfig {
 export const msalConfig: AuthConfig = {
   auth: {
     clientId: process.env.AZURE_CLIENT_ID || "",
-    authority: `${process.env.AZURE_CLOUD_INSTANCE || "https://login.microsoftonline.com/"}${process.env.AZURE_TENANT_ID || ""}`,
+    authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
     clientSecret: process.env.AZURE_CLIENT_SECRET || "",
   },
   system: {
