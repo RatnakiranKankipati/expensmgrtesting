@@ -1,5 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 import { storage } from "./storage";
 import { insertCategorySchema, insertExpenseWalletSchema, updateExpenseWalletSchema, insertExpenseSchema, updateExpenseSchema } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -11,19 +15,42 @@ import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
-   app.get("/health", (req, res) => {
-  res.status(200).send("Healthy");
-});
+
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+
+  // Ensure uploads directory exists
+  const uploadDir = path.join(__dirname, "../uploads");
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  // Configure multer
+  const storagedata = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadDir),
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, `${uniqueSuffix}-${file.originalname}`);
+    },
+  });
+
+  const upload = multer({ storage: storagedata });
+
+
+  app.get("/health", (req, res) => {
+    res.status(200).send("Healthy");
+  });
 
   // Authentication routes
   app.use("/auth", authRoutes);
-  
+
   // User management routes (admin only)
   app.use("/api/users", userRoutes);
-  
+
   // Apply authentication middleware to all API routes except auth
   app.use("/api", authProvider.requireAuth());
-  
+
   // Category routes
   app.get("/api/categories", async (req, res) => {
     try {
@@ -51,11 +78,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const categoryData = insertCategorySchema.partial().parse(req.body);
       const category = await storage.updateCategory(id, categoryData);
-      
+
       if (!category) {
         return res.status(404).json({ error: "Category not found" });
       }
-      
+
       res.json(category);
     } catch (error) {
       console.error("Error updating category:", error);
@@ -67,11 +94,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const success = await storage.deleteCategory(id);
-      
+
       if (!success) {
         return res.status(404).json({ error: "Category not found" });
       }
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting category:", error);
@@ -120,11 +147,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const walletData = insertExpenseWalletSchema.partial().parse(req.body);
       const expenseWallet = await storage.updateExpenseWallet(id, walletData);
-      
+
       if (!expenseWallet) {
         return res.status(404).json({ error: "Expense wallet not found" });
       }
-      
+
       res.json(expenseWallet);
     } catch (error) {
       console.error("Error updating expense wallet:", error);
@@ -135,12 +162,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Expense routes
   app.get("/api/expenses", async (req, res) => {
     try {
-      const { 
-        search, 
-        categoryId, 
-        startDate, 
-        endDate, 
-        minAmount, 
+      const {
+        search,
+        categoryId,
+        startDate,
+        endDate,
+        minAmount,
         maxAmount,
         sortBy = 'date',
         sortOrder = 'desc',
@@ -191,11 +218,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const expense = await storage.getExpenseById(id);
-      
+
       if (!expense) {
         return res.status(404).json({ error: "Expense not found" });
       }
-      
+
       res.json(expense);
     } catch (error) {
       console.error("Error fetching expense:", error);
@@ -219,11 +246,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const expenseData = updateExpenseSchema.parse({ ...req.body, id });
       const expense = await storage.updateExpense(id, expenseData);
-      
+
       if (!expense) {
         return res.status(404).json({ error: "Expense not found" });
       }
-      
+
       res.json(expense);
     } catch (error) {
       console.error("Error updating expense:", error);
@@ -235,11 +262,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const success = await storage.deleteExpense(id);
-      
+
       if (!success) {
         return res.status(404).json({ error: "Expense not found" });
       }
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting expense:", error);
@@ -264,11 +291,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { month, year } = req.params;
       const monthNum = parseInt(month);
       const yearNum = parseInt(year);
-      
+
       if (isNaN(monthNum) || isNaN(yearNum) || monthNum < 1 || monthNum > 12) {
         return res.status(400).json({ error: "Invalid month or year parameter" });
       }
-      
+
       const summary = await storage.getWalletSummaryForMonth(monthNum, yearNum);
       console.log(summary)
       res.json(summary);
@@ -283,7 +310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { month, year } = req.query;
       const monthNum = month ? parseInt(month as string) : undefined;
       const yearNum = year ? parseInt(year as string) : undefined;
-      
+
       const breakdown = await storage.getCategoryBreakdown(monthNum, yearNum);
       res.json(breakdown);
     } catch (error) {
@@ -295,11 +322,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/analytics/expense-trends/:days", async (req, res) => {
     try {
       const days = parseInt(req.params.days);
-      
+
       if (isNaN(days) || days < 1) {
         return res.status(400).json({ error: "Invalid days parameter" });
       }
-      
+
       const trends = await storage.getExpenseTrends(days);
       res.json(trends);
     } catch (error) {
@@ -311,11 +338,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/analytics/expense-trends-monthly/:months", async (req, res) => {
     try {
       const months = parseInt(req.params.months);
-      
+
       if (isNaN(months) || months < 1) {
         return res.status(400).json({ error: "Invalid months parameter" });
       }
-      
+
       const trends = await storage.getMonthlyExpenseTrends(months);
       res.json(trends);
     } catch (error) {
@@ -327,13 +354,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Export routes
   app.get("/api/export/csv", async (req, res) => {
     try {
-      const { 
-        search, 
-        categoryId, 
-        startDate, 
-        endDate, 
-        minAmount, 
-        maxAmount 
+      const {
+        search,
+        categoryId,
+        startDate,
+        endDate,
+        minAmount,
+        maxAmount
       } = req.query;
 
       const filters = {
@@ -412,16 +439,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/expenses/import-excel", async (req, res) => {
     try {
       const { filePath } = req.body;
-      
+
       if (!filePath) {
         return res.status(400).json({ error: "File path is required" });
       }
 
       // Construct full path to the uploaded file
       const fullPath = path.join(process.cwd(), filePath);
-      
+
       const results = await importExpensesFromExcel(fullPath);
-      
+
       res.json(results);
     } catch (error) {
       console.error("Error importing Excel file:", error);

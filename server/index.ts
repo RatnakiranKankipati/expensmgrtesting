@@ -5,6 +5,11 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
+import multer from "multer";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -13,6 +18,54 @@ const app = express();
 // -------------------- Middleware -------------------- //
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use("/uploads", express.static("uploads"))
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Configure multer storage
+const storagedata = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + "-" + file.originalname);
+  },
+});
+
+const upload = multer({ storage: storagedata });
+
+// Register your routes
+
+app.post(
+  "/api/uploadfile",
+  upload.single("file"),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ message: "No file uploaded" });
+        return;
+      }
+
+      res.status(201).json({
+        message: "File uploaded successfully",
+        file: {
+          originalName: req.file.originalname,
+          savedAs: req.file.filename,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          path: `/uploads/${req.file.filename}`,
+        },
+      });
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ message: "Failed to upload file" });
+    }
+  }
+);
 
 // -------------------- CORS -------------------- //
 app.use(cors({
@@ -20,6 +73,8 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true // needed for cookies
 }));
+
+
 
 // -------------------- Session -------------------- //
 const PgSession = connectPgSimple(session);
@@ -91,8 +146,8 @@ app.use((req, res, next) => {
 
   // -------------------- Start Server -------------------- //
   const port = Number(process.env.PORT) || 3000;
-  
-  
+
+
   app.listen(port, "0.0.0.0", () => {
     console.log(`Server running on port ${port}`);
   });
