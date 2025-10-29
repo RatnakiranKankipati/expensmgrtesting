@@ -15,6 +15,8 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
+//testing image upload
+
 // -------------------- Middleware -------------------- //
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
